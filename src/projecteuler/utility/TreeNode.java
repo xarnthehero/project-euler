@@ -72,4 +72,12 @@ public class TreeNode<T> {
 		
 		return level;
 	}
+	
+	public TreeNode<T> getHead() {
+		TreeNode<T> currentNode = this;
+		while(currentNode.getParent() != null) {
+			currentNode = currentNode.getParent();
+		}
+		return currentNode;
+	}
 }

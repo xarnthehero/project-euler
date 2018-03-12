@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
+import projecteuler.utility.MyQueue;
 import projecteuler.utility.TreeNode;
 
 
@@ -35,7 +36,7 @@ public class Problem259 extends Problem {
 	private List<Operator> operators;
 	
 	//List of the head of all trees. Each tree will have 1 reference to each of the values in operators[].
-	private OperatorTreeNode[] headOfTrees;
+	private List<OperatorTreeNode> headOfTrees;
 	
 	public Problem259() {
 		this(1, 9);
@@ -54,7 +55,7 @@ public class Problem259 extends Problem {
 	/**
 	 * Strategy -
 	 * I should be able to brute force this problem without pruning down the possibilities as the number of trees to check
-	 * is 32768 * 1400 = 45,875,200. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
+	 * should be 32768 * 1400 = 45,875,200. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
 	 * Depending on the parenthesis, 1 / (2 # 3) would be valid. Before calculating the value for each equation, I will make
 	 * sure it is a valid tree by skipping equations where the combine is not done first.
 	 * 
@@ -73,7 +74,7 @@ public class Problem259 extends Problem {
 
 	private BigInteger sumOfReachableNumbers(int startDigit, int endDigit) {
 		
-		int numberOfOperators = startDigit - endDigit;
+		int numberOfOperators = endDigit - startDigit;
 		
 		//Initialize the 8 operators used
 		operators = new LinkedList<Operator>();
@@ -81,24 +82,66 @@ public class Problem259 extends Problem {
 			operators.add(new Operator(OperatorEnum.ADD));
 		}
 		
-//		[+ + + + + + + +]
-//		[] [+ + + + + + +]  O(+)
-		
-//		
-		
-		for(int i = 0; i < operators.size(); i++) {
-			OperatorTreeNode head = new OperatorTreeNode(operators.get(i));
-			List<Operator> left = operators.subList(0, i - 1);
-			List<Operator> right = operators.subList(i + 1, operators.size() - 1); 
-			
-			
-		}
+		buildTrees();
+
 		
 		
 		return BigInteger.ZERO;
 	}
 	
-//	private OperatorTreeNode 
+	/**
+	 * Loop through all operators, creating the head of a tree for each. For index i as the tree head,
+	 * 0 through i-1 have to go in the left branch and i+1 - size()-1 have to go in the right branch.
+	 * With these two new lists [0, i-1] and [i+1, size()-1], the same process can be repeated, copying
+	 * the tree when adding each value.
+	 */
+	private void buildTrees() {
+		
+		headOfTrees = new ArrayList<OperatorTreeNode>();
+		
+		for(int i = 0; i < operators.size(); i++) {
+			OperatorTreeNode head = new OperatorTreeNode(operators.get(i));
+			headOfTrees.add(head);
+			
+			List<Operator> left = null;
+			List<Operator> right = null;
+			if(0 <= i - 1) {
+				left = operators.subList(0, i - 1);
+			}
+			if(i + 1 <= operators.size() - 1) {
+				right = operators.subList(i + 1, operators.size() - 1);
+			}
+			
+			addChildNodes(head, left, true);
+			addChildNodes(head, right, false);
+		}
+	}
+	
+	private void addChildNodes(OperatorTreeNode node, List<Operator> opList, boolean leftChild) {
+		if(opList == null || opList.isEmpty()) {
+			return;
+		}
+		
+		for(int i = 0; i < opList.size(); i++) {
+			
+			//Make a new copy of the tree for each added value after the first, the first has already been added.
+			if(i > 0) {
+				node = node.deepCopyTree();
+				headOfTrees.add((OperatorTreeNode)node.getParent());
+			}
+			
+			List<Operator> left = null;
+			List<Operator> right = null;
+			if(0 <= i - 1) {
+				left = operators.subList(0, i - 1);
+			}
+			if(i + 1 <= operators.size() - 1) {
+				right = operators.subList(i + 1, operators.size() - 1);
+			}
+			
+			
+		}
+	}
 	
 	private enum OperatorEnum {
 		ADD("+") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.add(v2); } },
@@ -169,7 +212,6 @@ public class Problem259 extends Problem {
 		
 		//To create a new copy
 		public OperatorTreeNode(OperatorTreeNode t) {
-			super(this);
 			operator = t.getOperator();
 		}
 		
@@ -214,16 +256,50 @@ public class Problem259 extends Problem {
 		}
 		
 		/**
-		 * Makes a new node for every node in the original tree with a reference to the same operator object.
+		 * Makes a new node for every node in the original tree with a reference to the same operator enum object.
+		 * This method is assuming all nodes in the tree are OperatorTreeNode objects
 		 * @return the corresponding copied node in the new tree.
 		 */
 		public OperatorTreeNode deepCopyTree() {
 			
-			return null;
+			OperatorTreeNode copiedCorrespondingNode = null;
+			OperatorTreeNode currentOldNode = null;
+			OperatorTreeNode currentNewNode = null;
+			MyQueue<OperatorTreeNode> nodesToProcess = new MyQueue<OperatorTreeNode>();
 			
+			//Get the head of the tree
+			OperatorTreeNode head = (OperatorTreeNode)super.getHead();
+			
+			//Make the corresponding head to the new tree
+			OperatorTreeNode newHead = new OperatorTreeNode(head);
+			
+			//Add both to the queue, push the old tree value first followed by the new value.
+			nodesToProcess.push(head);
+			nodesToProcess.push(newHead);
+			
+			while(!nodesToProcess.isEmpty()) {
+				currentOldNode = nodesToProcess.pop();
+				currentNewNode = nodesToProcess.pop();
+				
+				if(this == currentOldNode) {
+					//So we can return the corresponding new node.
+					copiedCorrespondingNode = currentNewNode;
+				}
+				
+				if(currentOldNode.getChildLeft() != null) {
+					OperatorTreeNode newLeft = new OperatorTreeNode((OperatorTreeNode)currentOldNode.getChildLeft());
+					nodesToProcess.push((OperatorTreeNode)currentOldNode.getChildLeft());
+					nodesToProcess.push((OperatorTreeNode)newLeft);
+				}
+				
+				if(currentOldNode.getChildRight() != null) {
+					OperatorTreeNode newRight = new OperatorTreeNode((OperatorTreeNode)currentOldNode.getChildRight());
+					nodesToProcess.push((OperatorTreeNode)currentOldNode.getChildRight());
+					nodesToProcess.push((OperatorTreeNode)newRight);
+				}
+			}
+			
+			return copiedCorrespondingNode;
 		}
-		
-		
-		
 	}
 }
