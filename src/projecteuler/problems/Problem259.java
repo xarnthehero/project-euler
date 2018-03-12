@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 
 import projecteuler.utility.TreeNode;
@@ -30,8 +31,11 @@ public class Problem259 extends Problem {
 	private int startNumber;
 	private int endNumber;
 	
-	private Operator[] operators;
-	private OperatorTreeNode<BigInteger>[] headOfTrees;
+	//The list of reused operators. These will rotate to different values (from + to *) and are referenced in all trees.
+	private List<Operator> operators;
+	
+	//List of the head of all trees. Each tree will have 1 reference to each of the values in operators[].
+	private OperatorTreeNode[] headOfTrees;
 	
 	public Problem259() {
 		this(1, 9);
@@ -55,13 +59,11 @@ public class Problem259 extends Problem {
 	 * sure it is a valid tree by skipping equations where the combine is not done first.
 	 * 
 	 * 1) Create each of the 1400 possible tree structures using the same 8 operator nodes. This way, changing the value
-	 * for one node from + to - will change it in all trees. Add the 9 digit leaf nodes.
+	 * for one node from + to - will change it in all trees. Add the 9 digit leaf nodes to each tree.
 	 * 2) Calculate the answer for each tree. If the answer isn't an integer, ignore it. After finding an answer, it needs
 	 * to be stored in a hash table to we can quickly see if it has been seen before as we only want to count it once.
 	 * 3) Rotate the value of one of the operator nodes in the tree to a tree we haven't seen before. There are 8^5 possible
 	 * trees.
-	 * 
-	 * @return
 	 */
 	String execute() {
 		return sumOfReachableNumbers(startNumber, endNumber).toString();
@@ -74,15 +76,29 @@ public class Problem259 extends Problem {
 		int numberOfOperators = startDigit - endDigit;
 		
 		//Initialize the 8 operators used
-		operators = new Operator[numberOfOperators];
+		operators = new LinkedList<Operator>();
 		for(int i = 0; i < numberOfOperators; i++) {
-			operators[i] = new Operator(OperatorEnum.ADD);
+			operators.add(new Operator(OperatorEnum.ADD));
 		}
 		
+//		[+ + + + + + + +]
+//		[] [+ + + + + + +]  O(+)
+		
+//		
+		
+		for(int i = 0; i < operators.size(); i++) {
+			OperatorTreeNode head = new OperatorTreeNode(operators.get(i));
+			List<Operator> left = operators.subList(0, i - 1);
+			List<Operator> right = operators.subList(i + 1, operators.size() - 1); 
+			
+			
+		}
 		
 		
 		return BigInteger.ZERO;
 	}
+	
+//	private OperatorTreeNode 
 	
 	private enum OperatorEnum {
 		ADD("+") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.add(v2); } },
@@ -100,9 +116,9 @@ public class Problem259 extends Problem {
 		public String toString() {
 			return display;
 		}
-		
+
 		public BigDecimal operate(BigDecimal v1, BigDecimal v2) {
-			return null;
+			throw new IllegalStateException("operate() must be overwritten");
 		}
 		
 	}
@@ -133,11 +149,34 @@ public class Problem259 extends Problem {
 	}
 	
 	/**
+	 * A node in the tree that represents an operator.
+	 * For the equation 1+(2*4), the tree will look like:
 	 * 
+	 * 					+						O				O = OperatorTreeNode
+	 * 				/		\				/		\			T = TreeNode
+	 * 				1		*				T		O
+	 * 					/		\				/		\
+	 * 					2		4				T		T
+	 *
 	 */
-	private class OperatorTreeNode<T> extends TreeNode<T> {
+	private class OperatorTreeNode extends TreeNode {
 		
 		Operator operator;
+		
+		public OperatorTreeNode(Operator o) {
+			operator = o;
+		}
+		
+		//To create a new copy
+		public OperatorTreeNode(OperatorTreeNode t) {
+			super(this);
+			operator = t.getOperator();
+		}
+		
+
+		public Operator getOperator() {
+			return operator;
+		}
 		
 		public BigDecimal getTreeValue() {
 			return operator.operate(childLeft.getTreeValue(), childRight.getTreeValue());
@@ -149,7 +188,6 @@ public class Problem259 extends Problem {
 		 */
 		public boolean isValidTree() {
 
-			boolean isValid = true;
 			boolean iAmCombine = operator.getOperatorEnum().equals(OperatorEnum.COMBINE);
 
 			if (childLeft instanceof OperatorTreeNode) {
@@ -175,8 +213,17 @@ public class Problem259 extends Problem {
 			return true;
 		}
 		
-		public Operator getOperator() {
-			return operator;
+		/**
+		 * Makes a new node for every node in the original tree with a reference to the same operator object.
+		 * @return the corresponding copied node in the new tree.
+		 */
+		public OperatorTreeNode deepCopyTree() {
+			
+			return null;
+			
 		}
+		
+		
+		
 	}
 }

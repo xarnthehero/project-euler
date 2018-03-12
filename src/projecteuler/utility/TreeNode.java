@@ -9,6 +9,7 @@ public class TreeNode<T> {
 	protected TreeNode<T> childRight;
 	protected T value;
 	
+	
 	public void setValue(T v) {
 		value = v;
 	}
