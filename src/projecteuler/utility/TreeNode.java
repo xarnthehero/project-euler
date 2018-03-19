@@ -2,12 +2,25 @@ package projecteuler.utility;
 
 import java.math.BigDecimal;
 
-public class TreeNode<T> {
+import projecteuler.utility.PrintTree.PrintableNode;
 
+public class TreeNode<T> implements PrintableNode {
+
+	
+	
+	
 	protected TreeNode<T> parent;
 	protected TreeNode<T> childLeft;
 	protected TreeNode<T> childRight;
 	protected T value;
+	
+	public TreeNode() {
+		
+	}
+	
+	public TreeNode(T v) {
+		value = v;
+	}
 	
 	
 	public void setValue(T v) {
@@ -24,7 +37,9 @@ public class TreeNode<T> {
 	
 	public void setChildLeft(TreeNode<T> l) {
 		childLeft = l;
-		l.parent = this;
+		if(l != null) {
+			l.parent = this;
+		}
 	}
 	
 	public TreeNode<T> getChildLeft() {
@@ -33,7 +48,9 @@ public class TreeNode<T> {
 	
 	public void setChildRight(TreeNode<T> r) {
 		childRight = r;
-		r.parent = this;
+		if(r != null) {
+			r.parent = this;
+		}
 	}
 	
 	public TreeNode<T> getChildRight() {
@@ -79,5 +96,20 @@ public class TreeNode<T> {
 			currentNode = currentNode.getParent();
 		}
 		return currentNode;
+	}
+
+	@Override
+	public PrintableNode getLeft() {
+		return getChildLeft();
+	}
+
+	@Override
+	public PrintableNode getRight() {
+		return getChildRight();
+	}
+
+	@Override
+	public String getText() {
+		return value.toString();
 	}
 }

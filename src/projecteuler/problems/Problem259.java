@@ -2,13 +2,17 @@ package projecteuler.problems;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Stack;
 
+import projecteuler.utility.Fraction;
 import projecteuler.utility.MyQueue;
+import projecteuler.utility.PrintTree;
 import projecteuler.utility.TreeNode;
 
 
@@ -16,12 +20,12 @@ import projecteuler.utility.TreeNode;
 Reachable Numbers
 Problem 259
 A positive integer will be called reachable if it can result from an arithmetic expression obeying the following rules:
-•Uses the digits 1 through 9, in that order and exactly once each.
-•Any successive digits can be concatenated (for example, using the digits 2, 3 and 4 we obtain the number 234).
-•Only the four usual binary arithmetic operations (addition, subtraction, multiplication and division) are allowed.
-•Each operation can be used any number of times, or not at all.
-•Unary minus is not allowed.
-•Any number of (possibly nested) parentheses may be used to define the order of operations.
+â€¢Uses the digits 1 through 9, in that order and exactly once each.
+â€¢Any successive digits can be concatenated (for example, using the digits 2, 3 and 4 we obtain the number 234).
+â€¢Only the four usual binary arithmetic operations (addition, subtraction, multiplication and division) are allowed.
+â€¢Each operation can be used any number of times, or not at all.
+â€¢Unary minus is not allowed.
+â€¢Any number of (possibly nested) parentheses may be used to define the order of operations.
 
 For example, 42 is reachable, since (1/23) * ((4*5)-6) * (78-9) = 42.
 1 / 23 * 4 * 5 - 6 * 78 - 9
@@ -37,6 +41,8 @@ public class Problem259 extends Problem {
 	
 	//List of the head of all trees. Each tree will have 1 reference to each of the values in operators[].
 	private List<OperatorTreeNode> headOfTrees;
+	
+	private HashSet<Integer> foundAnswers = new HashSet<Integer>();
 	
 	public Problem259() {
 		this(1, 9);
@@ -55,11 +61,17 @@ public class Problem259 extends Problem {
 	/**
 	 * Strategy -
 	 * I should be able to brute force this problem without pruning down the possibilities as the number of trees to check
-	 * should be 32768 * 1400 = 45,875,200. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
+	 * should be 32768 * 1094 = 35,848,192. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
 	 * Depending on the parenthesis, 1 / (2 # 3) would be valid. Before calculating the value for each equation, I will make
 	 * sure it is a valid tree by skipping equations where the combine is not done first.
 	 * 
-	 * 1) Create each of the 1400 possible tree structures using the same 8 operator nodes. This way, changing the value
+	 * Since I am performing mathematical operations and need to know if the answer is exactly an integer, I need to be careful
+	 * when doing division. Using BigDecimals, if I do (1 / 3) * 3 I get something like 1.00000000000002 which won't work. To solve
+	 * this, I am going to treat the numbers as fractions and only do the division at the end. The above equation would result in
+	 * the fraction 3/3 which will evaluate to 1. This is done by keeping track of the numerator and denominators separately and not
+	 * doing the division until all the operations are complete.
+	 * 
+	 * 1) Create each of the 1094 possible tree structures using the same 8 operator nodes. This way, changing the value
 	 * for one node from + to - will change it in all trees. Add the 9 digit leaf nodes to each tree.
 	 * 2) Calculate the answer for each tree. If the answer isn't an integer, ignore it. After finding an answer, it needs
 	 * to be stored in a hash table to we can quickly see if it has been seen before as we only want to count it once.
@@ -69,24 +81,59 @@ public class Problem259 extends Problem {
 	String execute() {
 		return sumOfReachableNumbers(startNumber, endNumber).toString();
 	}
-
 	
 
 	private BigInteger sumOfReachableNumbers(int startDigit, int endDigit) {
 		
 		int numberOfOperators = endDigit - startDigit;
+		BigInteger sum = BigInteger.ZERO;
 		
-		//Initialize the 8 operators used
+		//Initialize the 8 operators used to PLUS
 		operators = new LinkedList<Operator>();
+		OperatorEnum initialValue = OperatorEnum.values()[0];
 		for(int i = 0; i < numberOfOperators; i++) {
-			operators.add(new Operator(OperatorEnum.ADD));
+			operators.add(new Operator(initialValue));
 		}
+
+//		operators.add(new Operator(OperatorEnum.ADD));
+//		operators.add(new Operator(OperatorEnum.MULTIPLY));
+//		operators.add(new Operator(OperatorEnum.DIVIDE));
+//		operators.add(new Operator(OperatorEnum.SUBTRACT));
+//		operators.add(new Operator(OperatorEnum.COMBINE));
+//		operators.add(new Operator(OperatorEnum.ADD));
+		
+		debug("Operators: " + operators);
 		
 		buildTrees();
+		addNumberLeaves();
+		
+		boolean keepRunning = true;
+		
+		while(keepRunning) {
+			for(int i = 0; i < headOfTrees.size(); i++) {
+				OperatorTreeNode node = headOfTrees.get(i);
+				if(node.isValidTree()) {
+					debug("Evaluating:");
+					debug(PrintTree.print(node.getHead()));
+					Fraction equationAnswer = calculateTreeAnswer(node);
+					double answer = equationAnswer.evaluate();
+					int intAnswer = (int)answer;
+					if(answer == intAnswer && !foundAnswers.contains(new Integer(intAnswer))) {
+						debug("Answer Found: " + intAnswer);
+						foundAnswers.add(new Integer(intAnswer));
+						sum = sum.add(new BigInteger(new Long((long)answer).toString()));
+					}
+				}
+			}
+			
+			//Increment the operators and run the tree equations again
+			keepRunning = updateOperators();
+		}
+		
 
+//		PrintTree.print(node);
 		
-		
-		return BigInteger.ZERO;
+		return sum;
 	}
 	
 	/**
@@ -96,71 +143,202 @@ public class Problem259 extends Problem {
 	 * the tree when adding each value.
 	 */
 	private void buildTrees() {
-		
 		headOfTrees = new ArrayList<OperatorTreeNode>();
 		
 		for(int i = 0; i < operators.size(); i++) {
 			OperatorTreeNode head = new OperatorTreeNode(operators.get(i));
 			headOfTrees.add(head);
-			
 			List<Operator> left = null;
 			List<Operator> right = null;
-			if(0 <= i - 1) {
-				left = operators.subList(0, i - 1);
+			if(0 <= i) {
+				left = operators.subList(0, i);
 			}
-			if(i + 1 <= operators.size() - 1) {
-				right = operators.subList(i + 1, operators.size() - 1);
+			if(i + 1 <= operators.size()) {
+				right = operators.subList(i + 1, operators.size());
 			}
 			
-			addChildNodes(head, left, true);
-			addChildNodes(head, right, false);
+			addAllNodeCombinations(head, left, right);
 		}
 	}
 	
-	private void addChildNodes(OperatorTreeNode node, List<Operator> opList, boolean leftChild) {
+	private void addChildNodes(OperatorTreeNode node, List<Operator> opList, int nextNodeIndex, boolean leftChild) {
 		if(opList == null || opList.isEmpty()) {
 			return;
 		}
 		
-		for(int i = 0; i < opList.size(); i++) {
+		//Add the next node to the correct branch
+		OperatorTreeNode newNode = new OperatorTreeNode(opList.get(nextNodeIndex));
+		
+
+		debug("Adding child node " + newNode + " to " + node + " from index " + nextNodeIndex);
+		debug("opList=" + opList + ", adding to " + (leftChild ? "left" : "right") + " child");
+		debug(PrintTree.print(node.getHead()));
+		
+		
+		if(leftChild) {
+			node.setChildLeft(newNode);
+		}
+		else {
+			node.setChildRight(newNode);
+		}
+		
+		List<Operator> left = null;
+		List<Operator> right = null;
+		if(0 <= nextNodeIndex - 1) {
+			left = opList.subList(0, nextNodeIndex);
+		}
+		if(nextNodeIndex + 1 <= opList.size()) {
+			right = opList.subList(nextNodeIndex + 1, opList.size());
+		}
+
+		
+		addAllNodeCombinations(newNode, left, right);
+		
+
+
+		
+		debug(PrintTree.print(node.getHead()));
+		debug("\n");
+		
 			
-			//Make a new copy of the tree for each added value after the first, the first has already been added.
-			if(i > 0) {
-				node = node.deepCopyTree();
-				headOfTrees.add((OperatorTreeNode)node.getParent());
+	}
+	
+	private void addAllNodeCombinations(OperatorTreeNode node, List<Operator> left, List<Operator> right) {
+		//Loop through at least once
+		boolean noLeftNodesToAdd = left == null || left.isEmpty();
+		boolean noRightNodesToAdd = right == null || right.isEmpty();
+		
+		if(noLeftNodesToAdd && noRightNodesToAdd) {
+			//No new nodes to add
+			return;
+		}
+		
+		//If we are adding some nodes, loop through at least once since this is a nested loop
+		int leftLoopSize = noLeftNodesToAdd ? 1 : left.size();
+		int rightLoopSize = noRightNodesToAdd ? 1 : right.size();
+		
+		
+		for(int leftListIndex = 0; leftListIndex < leftLoopSize; leftListIndex++) {
+			for(int rightListIndex = 0; rightListIndex < rightLoopSize; rightListIndex++) {
+				//If we are not on the first iteration, copy the tree.
+				if(leftListIndex > 0 || rightListIndex > 0) {
+					node = node.deepCopyTree();
+					headOfTrees.add((OperatorTreeNode)node.getHead());
+					//The node being copied from could already have set child values.
+					node.setChildLeft(null);
+					node.setChildRight(null);
+				}
+				addChildNodes(node, left, leftListIndex, true);
+				addChildNodes(node, right, rightListIndex, false);
 			}
-			
-			List<Operator> left = null;
-			List<Operator> right = null;
-			if(0 <= i - 1) {
-				left = operators.subList(0, i - 1);
-			}
-			if(i + 1 <= operators.size() - 1) {
-				right = operators.subList(i + 1, operators.size() - 1);
-			}
-			
-			
 		}
 	}
 	
+	/**
+	 * All trees should be built into headOfTrees[]. This method will add all leaf nodes
+	 * by doing an in order traverse of each tree
+	 */
+	private void addNumberLeaves() {
+		
+		Stack<OperatorTreeNode> stack = new Stack<OperatorTreeNode>();
+		
+		
+		for(OperatorTreeNode node : headOfTrees) {
+			
+			debug("Adding leaves to tree:");
+			debug(PrintTree.print(node.getHead()));
+			
+			int currentNumber = startNumber;
+			while(node != null) {
+				stack.push(node);
+				node = (OperatorTreeNode)node.getChildLeft();
+			}
+			
+			while(!stack.isEmpty()) {
+				node = stack.pop();
+				if(node.getChildLeft() == null) {
+					node.setChildLeft(new TreeNode<Fraction>(new Fraction(currentNumber++)));
+				}
+				
+				if(node.getChildRight() == null) {
+					node.setChildRight(new TreeNode<Fraction>(new Fraction(currentNumber++)));
+				}
+				else {
+					//Right child is an operator node
+					node = (OperatorTreeNode)node.getChildRight();
+					while(node != null) {
+						stack.push(node);
+						node = (OperatorTreeNode)node.getChildLeft();
+					}
+				}
+			}
+			
+			debug("After adding leaves:");
+			debug(PrintTree.print(node.getHead()));
+		}
+	}
+	
+	public Fraction calculateTreeAnswer(TreeNode<Fraction> node) {
+		if(node instanceof OperatorTreeNode) {
+			return ((OperatorTreeNode)node).getOperator().operate(calculateTreeAnswer(node.getChildLeft()), calculateTreeAnswer(node.getChildRight()));
+		}
+		else {
+			return node.getValue();
+		}
+	}
+	
+	/**
+	 * This method will update the operators being used by the trees. This method will
+	 * eventually rotate through all possible combinations.
+	 * @return true if the operators have been updated, false if there are no new values.
+	 */
+	public boolean updateOperators() {
+		OperatorEnum[] opValues = OperatorEnum.values();
+		OperatorEnum lastOperator = opValues[opValues.length - 1];
+		int indexToChange = 0;
+		while(indexToChange < operators.size() && operators.get(indexToChange).getOperatorEnum() == lastOperator) {
+			indexToChange++;
+		}
+		
+		//End condition hit, we are at the last iteration as all operators are COMBINE.
+		if(indexToChange == operators.size()) {
+			return false;
+		}
+		
+		//Reset all operators indexes 0 - indexToChange-1 to ADD
+		for(int i = 0; i < indexToChange; i++) {
+			operators.get(i).setOperatorEnum(opValues[0]);
+		}
+		
+		//Set operators[indexToChange] to the next value
+		for(int i = 0; i < opValues.length; i++) {
+			if(opValues[i] == operators.get(indexToChange).getOperatorEnum()) {
+				operators.get(indexToChange).setOperatorEnum(opValues[i+1]);
+				break;
+			}
+		}
+		
+		return true;
+	}
+	
 	private enum OperatorEnum {
-		ADD("+") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.add(v2); } },
-		SUBTRACT("-") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.subtract(v2); } },
-		MULTIPLY("*") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.multiply(v2); } },
-		DIVIDE("/") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return v1.divide(v2); } },
-		COMBINE("#") {	public BigDecimal operate(BigDecimal v1, BigDecimal v2) { return new BigDecimal(v1.toBigInteger().toString() + v2.toBigInteger().toString()); } };
+		ADD("+") {	public Fraction operate(Fraction v1, Fraction v2) { return v1.add(v2); } },
+		SUBTRACT("-") {	public Fraction operate(Fraction v1, Fraction v2) { return v1.subtract(v2); } }, 
+		MULTIPLY("*") {	public Fraction operate(Fraction v1, Fraction v2) { return v1.multiply(v2); } },
+		DIVIDE("/") {	public Fraction operate(Fraction v1, Fraction v2) { return v1.divide(v2); } },
+		COMBINE("#") {	public Fraction operate(Fraction v1, Fraction v2) { return new Fraction(new Long(v1.getNumerator() + "" + v2.getNumerator())); } };
 		
 		private String display;
 		
 		private OperatorEnum(String s) {
-			display = " " + s + " ";
+			display = s;
 		}
 		
 		public String toString() {
 			return display;
 		}
 
-		public BigDecimal operate(BigDecimal v1, BigDecimal v2) {
+		public Fraction operate(Fraction v1, Fraction v2) {
 			throw new IllegalStateException("operate() must be overwritten");
 		}
 		
@@ -181,12 +359,20 @@ public class Problem259 extends Problem {
 		/**
 		 * Pass through method
 		 */
-		public BigDecimal operate(BigDecimal v1, BigDecimal v2) {
+		public Fraction operate(Fraction v1, Fraction v2) {
 			return op.operate(v1, v2);
+		}
+		
+		public void setOperatorEnum(OperatorEnum op) {
+			this.op = op;
 		}
 		
 		public OperatorEnum getOperatorEnum() {
 			return op;
+		}
+		
+		public String toString() {
+			return op.toString();
 		}
 		
 	}
@@ -219,11 +405,7 @@ public class Problem259 extends Problem {
 		public Operator getOperator() {
 			return operator;
 		}
-		
-		public BigDecimal getTreeValue() {
-			return operator.operate(childLeft.getTreeValue(), childRight.getTreeValue());
-		}
-		
+
 		/**
 		 * If this node is a combine node and one of it's children isn't a combine, this combine will get
 		 * executed after another operation which isn't valid.
@@ -253,6 +435,15 @@ public class Problem259 extends Problem {
 			}
 
 			return true;
+		}
+		
+		@Override
+		public String getText() {
+			return operator.toString();
+		}
+		
+		public String toString() {
+			return operator.toString();
 		}
 		
 		/**
@@ -288,12 +479,14 @@ public class Problem259 extends Problem {
 				
 				if(currentOldNode.getChildLeft() != null) {
 					OperatorTreeNode newLeft = new OperatorTreeNode((OperatorTreeNode)currentOldNode.getChildLeft());
+					currentNewNode.setChildLeft(newLeft);
 					nodesToProcess.push((OperatorTreeNode)currentOldNode.getChildLeft());
 					nodesToProcess.push((OperatorTreeNode)newLeft);
 				}
 				
 				if(currentOldNode.getChildRight() != null) {
 					OperatorTreeNode newRight = new OperatorTreeNode((OperatorTreeNode)currentOldNode.getChildRight());
+					currentNewNode.setChildRight(newRight);
 					nodesToProcess.push((OperatorTreeNode)currentOldNode.getChildRight());
 					nodesToProcess.push((OperatorTreeNode)newRight);
 				}
@@ -302,4 +495,5 @@ public class Problem259 extends Problem {
 			return copiedCorrespondingNode;
 		}
 	}
+	
 }
