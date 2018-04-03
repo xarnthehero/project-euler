@@ -59,7 +59,7 @@ public class Problem259 extends Problem {
 	 * Strategy -
 	 * I initially miscalculated the number of solutions that would need to be checked by about a factor of 10, so what I thought
 	 * could be brute forced still can be but it runs for some time, needing to check 5^8 * 1430 = 558,593,750 trees... ew :^(
-	 * It is still possible, willl just take time. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
+	 * It is still possible, will just take time. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
 	 * Depending on the parenthesis, 1 / (2 # 3) would be valid. Before calculating the value for each equation, I will make
 	 * sure it is a valid tree by skipping equations where the combine is not done first.
 	 * 
