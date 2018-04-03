@@ -1,10 +1,7 @@
 package projecteuler.problems;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.MathContext;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -60,8 +57,9 @@ public class Problem259 extends Problem {
 	
 	/**
 	 * Strategy -
-	 * I should be able to brute force this problem without pruning down the possibilities as the number of trees to check
-	 * should be 32768 * 1094 = 35,848,192. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
+	 * I initially miscalculated the number of solutions that would need to be checked by about a factor of 10, so what I thought
+	 * could be brute forced still can be but it runs for some time, needing to check 5^8 * 1430 = 558,593,750 trees... ew :^(
+	 * It is still possible, willl just take time. One invalid case that I didn't see initially is (1 / 2) # 3   where # is combine.
 	 * Depending on the parenthesis, 1 / (2 # 3) would be valid. Before calculating the value for each equation, I will make
 	 * sure it is a valid tree by skipping equations where the combine is not done first.
 	 * 
@@ -71,12 +69,11 @@ public class Problem259 extends Problem {
 	 * the fraction 3/3 which will evaluate to 1. This is done by keeping track of the numerator and denominators separately and not
 	 * doing the division until all the operations are complete.
 	 * 
-	 * 1) Create each of the 1094 possible tree structures using the same 8 operator nodes. This way, changing the value
+	 * 1) Create each of the 1430 possible tree structures using the same 8 operator nodes. This way, changing the value
 	 * for one node from + to - will change it in all trees. Add the 9 digit leaf nodes to each tree.
 	 * 2) Calculate the answer for each tree. If the answer isn't an integer, ignore it. After finding an answer, it needs
 	 * to be stored in a hash table to we can quickly see if it has been seen before as we only want to count it once.
-	 * 3) Rotate the value of one of the operator nodes in the tree to a tree we haven't seen before. There are 8^5 possible
-	 * trees.
+	 * 3) Rotate the value of one of the operator nodes in the tree to a tree we haven't seen before. There are 5^8 possible trees.
 	 */
 	String execute() {
 		return sumOfReachableNumbers(startNumber, endNumber).toString();
@@ -95,30 +92,26 @@ public class Problem259 extends Problem {
 			operators.add(new Operator(initialValue));
 		}
 
-//		operators.add(new Operator(OperatorEnum.ADD));
-//		operators.add(new Operator(OperatorEnum.MULTIPLY));
-//		operators.add(new Operator(OperatorEnum.DIVIDE));
-//		operators.add(new Operator(OperatorEnum.SUBTRACT));
-//		operators.add(new Operator(OperatorEnum.COMBINE));
-//		operators.add(new Operator(OperatorEnum.ADD));
-		
 		debug("Operators: " + operators);
 		
-		buildTrees();
+		headOfTrees = getAllTreeCombinations(operators);
 		addNumberLeaves();
 		
 		boolean keepRunning = true;
+		int operatorCount = 0;
 		
 		while(keepRunning) {
 			for(int i = 0; i < headOfTrees.size(); i++) {
 				OperatorTreeNode node = headOfTrees.get(i);
 				if(node.isValidTree()) {
 					debug("Evaluating:");
-					debug(PrintTree.print(node.getHead()));
+					//putting the if so we don't build the debug string every time just to not log it,
+					//this speeds up the program like 100x
+					if(debug) { debug(PrintTree.print(node.getHead())); }
 					Fraction equationAnswer = calculateTreeAnswer(node);
 					double answer = equationAnswer.evaluate();
 					int intAnswer = (int)answer;
-					if(answer == intAnswer && !foundAnswers.contains(new Integer(intAnswer))) {
+					if(answer == intAnswer && answer > 0 && !foundAnswers.contains(new Integer(intAnswer))) {
 						debug("Answer Found: " + intAnswer);
 						foundAnswers.add(new Integer(intAnswer));
 						sum = sum.add(new BigInteger(new Long((long)answer).toString()));
@@ -128,6 +121,12 @@ public class Problem259 extends Problem {
 			
 			//Increment the operators and run the tree equations again
 			keepRunning = updateOperators();
+			
+			//For debug
+			operatorCount++;
+			if(operatorCount % 1000 == 0) {
+				debug("Operator count: " + operatorCount);
+			}
 		}
 		
 
@@ -137,101 +136,61 @@ public class Problem259 extends Problem {
 	}
 	
 	/**
-	 * Loop through all operators, creating the head of a tree for each. For index i as the tree head,
-	 * 0 through i-1 have to go in the left branch and i+1 - size()-1 have to go in the right branch.
-	 * With these two new lists [0, i-1] and [i+1, size()-1], the same process can be repeated, copying
-	 * the tree when adding each value.
+	 * This method will return all possible trees that are makeable from the list of operators.
+	 * This is done by looping through each element, splitting the list into operators before
+	 * that element and operators after that element, and calling this method recursively
+	 * for the left and right lists. After getting both lists, make a copy of the list for every
+	 * combination of the left and right sub trees.
 	 */
-	private void buildTrees() {
-		headOfTrees = new ArrayList<OperatorTreeNode>();
+	private List<OperatorTreeNode> getAllTreeCombinations(List<Operator> operators) {
 		
-		for(int i = 0; i < operators.size(); i++) {
-			OperatorTreeNode head = new OperatorTreeNode(operators.get(i));
-			headOfTrees.add(head);
+		List<OperatorTreeNode> trees = new ArrayList<OperatorTreeNode>();
+		
+		for (int i = 0; i < operators.size(); i++) {
+
+			Operator operator = operators.get(i);
+
 			List<Operator> left = null;
 			List<Operator> right = null;
-			if(0 <= i) {
+			if (0 <= i) {
 				left = operators.subList(0, i);
 			}
-			if(i + 1 <= operators.size()) {
+			if (i + 1 <= operators.size()) {
 				right = operators.subList(i + 1, operators.size());
 			}
-			
-			addAllNodeCombinations(head, left, right);
-		}
-	}
-	
-	private void addChildNodes(OperatorTreeNode node, List<Operator> opList, int nextNodeIndex, boolean leftChild) {
-		if(opList == null || opList.isEmpty()) {
-			return;
-		}
-		
-		//Add the next node to the correct branch
-		OperatorTreeNode newNode = new OperatorTreeNode(opList.get(nextNodeIndex));
-		
 
-		debug("Adding child node " + newNode + " to " + node + " from index " + nextNodeIndex);
-		debug("opList=" + opList + ", adding to " + (leftChild ? "left" : "right") + " child");
-		debug(PrintTree.print(node.getHead()));
-		
-		
-		if(leftChild) {
-			node.setChildLeft(newNode);
-		}
-		else {
-			node.setChildRight(newNode);
-		}
-		
-		List<Operator> left = null;
-		List<Operator> right = null;
-		if(0 <= nextNodeIndex - 1) {
-			left = opList.subList(0, nextNodeIndex);
-		}
-		if(nextNodeIndex + 1 <= opList.size()) {
-			right = opList.subList(nextNodeIndex + 1, opList.size());
-		}
+			List<OperatorTreeNode> leftTrees = getAllTreeCombinations(left);
+			List<OperatorTreeNode> rightTrees = getAllTreeCombinations(right);
 
-		
-		addAllNodeCombinations(newNode, left, right);
-		
+			boolean leftTreesIsEmpty = leftTrees == null || leftTrees.isEmpty();
+			boolean rightTreesIsEmpty = rightTrees == null || rightTrees.isEmpty();
 
+			// This will be a nested loop and we want to go through at least one
+			// time even if there is nothing
+			// to put in one of the sides.
+			int leftListSize = leftTreesIsEmpty ? 1 : leftTrees.size();
+			int rightListSize = rightTreesIsEmpty ? 1 : rightTrees.size();
 
-		
-		debug(PrintTree.print(node.getHead()));
-		debug("\n");
-		
-			
-	}
-	
-	private void addAllNodeCombinations(OperatorTreeNode node, List<Operator> left, List<Operator> right) {
-		//Loop through at least once
-		boolean noLeftNodesToAdd = left == null || left.isEmpty();
-		boolean noRightNodesToAdd = right == null || right.isEmpty();
-		
-		if(noLeftNodesToAdd && noRightNodesToAdd) {
-			//No new nodes to add
-			return;
-		}
-		
-		//If we are adding some nodes, loop through at least once since this is a nested loop
-		int leftLoopSize = noLeftNodesToAdd ? 1 : left.size();
-		int rightLoopSize = noRightNodesToAdd ? 1 : right.size();
-		
-		
-		for(int leftListIndex = 0; leftListIndex < leftLoopSize; leftListIndex++) {
-			for(int rightListIndex = 0; rightListIndex < rightLoopSize; rightListIndex++) {
-				//If we are not on the first iteration, copy the tree.
-				if(leftListIndex > 0 || rightListIndex > 0) {
-					node = node.deepCopyTree();
-					headOfTrees.add((OperatorTreeNode)node.getHead());
-					//The node being copied from could already have set child values.
-					node.setChildLeft(null);
-					node.setChildRight(null);
+			for (int leftListIndex = 0; leftListIndex < leftListSize; leftListIndex++) {
+				for (int rightListIndex = 0; rightListIndex < rightListSize; rightListIndex++) {
+					OperatorTreeNode head = new OperatorTreeNode(operator);
+
+					if (!leftTreesIsEmpty) {
+						head.setChildLeft(leftTrees.get(leftListIndex).deepCopyTree());
+					}
+
+					if (!rightTreesIsEmpty) {
+						head.setChildRight(rightTrees.get(rightListIndex).deepCopyTree());
+					}
+					
+					if(debug) { debug(PrintTree.print(head)); }
+					trees.add(head);
+					
 				}
-				addChildNodes(node, left, leftListIndex, true);
-				addChildNodes(node, right, rightListIndex, false);
 			}
 		}
+		
+		return trees;
 	}
 	
 	/**
@@ -246,7 +205,7 @@ public class Problem259 extends Problem {
 		for(OperatorTreeNode node : headOfTrees) {
 			
 			debug("Adding leaves to tree:");
-			debug(PrintTree.print(node.getHead()));
+			if(debug) { debug(PrintTree.print(node.getHead())); }
 			
 			int currentNumber = startNumber;
 			while(node != null) {
@@ -274,7 +233,7 @@ public class Problem259 extends Problem {
 			}
 			
 			debug("After adding leaves:");
-			debug(PrintTree.print(node.getHead()));
+			if(debug) { debug(PrintTree.print(node.getHead())); }
 		}
 	}
 	
