@@ -1,6 +1,6 @@
 package projecteuler.problems;
 
-import projecteuler.utility.NumberUtilities;
+import projecteuler.utility.NumberUtilies;
 
 /**
 Largest palindrome product
@@ -41,7 +41,7 @@ public class Problem4 extends Problem {
 		for(int i = startNumber; i <= endNumber; i++) {
 			for(int j = startNumber; j <= endNumber; j++) {
 				long product = i * j;
-				if(product > maxPalindrome && NumberUtilities.isPalindrome(product)) {
+				if(product > maxPalindrome && NumberUtilies.isPalindrome(product)) {
 					maxPalindrome = product;
 					num1 = i;
 					num2 = j;

@@ -1,6 +1,6 @@
 package projecteuler.utility;
 
-public class NumberUtilities {
+public class NumberUtilies {
 
     public static boolean isPalindrome(long number) {
         String numberString = new Long(number).toString();
@@ -12,5 +12,9 @@ public class NumberUtilities {
                 }
         }
         return true;
+    }
+    
+    public static String longToString(long l) {
+    	return new Long(l).toString();
     }
 }
