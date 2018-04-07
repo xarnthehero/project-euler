@@ -21,7 +21,7 @@ public class Node<T extends Comparable<T>> implements Comparable<Node<T>> {
 	
 	public void setNext(Node<T> next) {
 	    this.next = next;
-	    if(this != next.getPrevious()) {
+	    if(next != null && this != next.getPrevious()) {
 	        next.setPrevious(this);
 	    }
 	}
@@ -32,7 +32,7 @@ public class Node<T extends Comparable<T>> implements Comparable<Node<T>> {
 	
 	public void setPrevious(Node<T> previous) {
 	    this.previous = previous;
-	    if(this != previous.getNext()) {
+	    if(previous != null && this != previous.getNext()) {
 	        previous.setNext(this);
 	    }
 	}
